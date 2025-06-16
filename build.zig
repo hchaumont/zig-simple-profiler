@@ -5,14 +5,14 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
 
     const lib_mod = b.createModule(.{
-        .root_source_file = b.path("src/timer.zig"),
+        .root_source_file = b.path("src/profiler.zig"),
         .target = target,
         .optimize = optimize,
     });
 
     const lib = b.addLibrary(.{
         .linkage = .static,
-        .name = "zig-tsc",
+        .name = "zig-profiler",
         .root_module = lib_mod,
     });
 
