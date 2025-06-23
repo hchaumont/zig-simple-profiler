@@ -32,10 +32,16 @@ const Profiler = struct {
 
     pub fn printResults(self: *Profiler) !void {
         const stdout = std.io.getStdOut().writer();
-        try stdout.print("Total cycles: {d}\n", .{self.end_tsc -% self.start_tsc});
+        const total_cycles: u64 = self.end_tsc -% self.start_tsc;
+        try stdout.print("\nTotal cycles: {d}", .{total_cycles});
         for (self.anchors, 0..) |a, i| {
             const anchor_tag: ZoneTag = @enumFromInt(i);
-            try stdout.print("  Zone {s} : {d} cycles ({d} exclusive) ({d} hits)\n", .{@tagName(anchor_tag), a.tsc_inclusive, a.tsc_exclusive, a.hit_count});
+            const exclusive_pct: f64 = @as(f64, @floatFromInt(a.tsc_exclusive)) / @as(f64, @floatFromInt(total_cycles)) * 100;
+            try stdout.print("\n  {s} ({d} hits): {d:.2}%, {d} cycles", .{@tagName(anchor_tag), a.hit_count, exclusive_pct, a.tsc_exclusive});
+            if (a.tsc_inclusive != a.tsc_exclusive) {
+                const inclusive_pct = @as(f64, @floatFromInt(a.tsc_inclusive)) / @as(f64, @floatFromInt(total_cycles)) * 100;
+                try stdout.print(" ({d:.2}% including children)", .{inclusive_pct});
+            }
         }
     }
 
