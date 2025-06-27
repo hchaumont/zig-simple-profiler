@@ -1,5 +1,4 @@
 const std = @import("std");
-const timer = @import("timer.zig");
 
 const Anchor = struct {
     tsc_inclusive: u64,
@@ -37,7 +36,7 @@ const Profiler = struct {
         for (self.anchors, 0..) |a, i| {
             const anchor_tag: ZoneTag = @enumFromInt(i);
             const exclusive_pct: f64 = @as(f64, @floatFromInt(a.tsc_exclusive)) / @as(f64, @floatFromInt(total_cycles)) * 100;
-            try stdout.print("\n  {s} ({d} hits): {d:.2}%, {d} cycles", .{@tagName(anchor_tag), a.hit_count, exclusive_pct, a.tsc_exclusive});
+            try stdout.print("\n  {s} ({d} hits): {d:.2}%, {d} cycles", .{ @tagName(anchor_tag), a.hit_count, exclusive_pct, a.tsc_exclusive });
             if (a.tsc_inclusive != a.tsc_exclusive) {
                 const inclusive_pct = @as(f64, @floatFromInt(a.tsc_inclusive)) / @as(f64, @floatFromInt(total_cycles)) * 100;
                 try stdout.print(" ({d:.2}% including children)", .{inclusive_pct});
@@ -98,3 +97,51 @@ const Block = struct {
         }
     }
 };
+
+const timer = struct {
+    // Refer to https://www.felixcloutier.com/x86/rdtsc
+    pub inline fn rdtsc() u64 {
+        var hi: u32 = 0;
+        var low: u32 = 0;
+
+        asm (
+            \\rdtsc
+            : [low] "={eax}" (low),
+              [hi] "={edx}" (hi),
+        );
+        return (@as(u64, hi) << 32) | @as(u64, low);
+    }
+
+    // Given a positive number of ms, estimates the frequency of the CPU time stamp
+    // counter in Hz by comparing against the OS timer.
+    export fn estimateCpuTimerFrequency(ms_to_wait: i64) u64 {
+        const us_to_wait: i64 = ms_to_wait * std.time.us_per_ms;
+
+        const cpu_tsc_start = rdtsc();
+        const os_timestamp_start = std.time.microTimestamp();
+
+        var os_time_elapsed: i64 = 0;
+        while (os_time_elapsed < us_to_wait) {
+            os_time_elapsed = std.time.microTimestamp() - os_timestamp_start;
+        }
+        const cpu_tsc_end = rdtsc();
+
+        const cpu_ticks_elapsed = cpu_tsc_end - cpu_tsc_start;
+        std.debug.assert(os_time_elapsed > 0);
+        const os_time_unsigned: u64 = @intCast(os_time_elapsed);
+        const cpu_timestamp_frequency = cpu_ticks_elapsed * std.time.us_per_s / os_time_unsigned;
+        return cpu_timestamp_frequency;
+    }
+};
+
+test "estimates CPU timer frequency" {
+    const ms_to_wait = 100;
+    const freq = timer.estimateCpuTimerFrequency(ms_to_wait);
+    try std.testing.expect(freq > 0);
+}
+
+test "reads time stamp counter" {
+    const ts1 = timer.rdtsc();
+    const ts2 = timer.rdtsc();
+    try std.testing.expect(ts2 != ts1);
+}
