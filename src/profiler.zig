@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 
 const Anchor = struct {
     tsc_inclusive: u64,
@@ -22,14 +23,14 @@ const Profiler = struct {
     current_parent_index: ?usize,
 
     pub fn startTiming(self: *Profiler) void {
-        self.start_tsc = timer.rdtsc();
+        self.start_tsc = timer.readCounter();
     }
 
     pub fn stopTiming(self: *Profiler) void {
-        self.end_tsc = timer.rdtsc();
+        self.end_tsc = timer.readCounter();
     }
 
-    pub fn printResults(self: *Profiler) !void {
+    pub fn printResults(self: *Profiler, printFreq: bool) !void {
         const stdout = std.io.getStdOut().writer();
         const total_cycles: u64 = self.end_tsc -% self.start_tsc;
         try stdout.print("\nTotal cycles: {d}", .{total_cycles});
@@ -41,6 +42,10 @@ const Profiler = struct {
                 const inclusive_pct = @as(f64, @floatFromInt(a.tsc_inclusive)) / @as(f64, @floatFromInt(total_cycles)) * 100;
                 try stdout.print(" ({d:.2}% including children)", .{inclusive_pct});
             }
+        }
+        if (printFreq) {
+            const freq = timer.getCounterFrequency();
+            try stdout.print("\n(Estimated) Counter frequency: {d} Hz", .{freq});
         }
     }
 
@@ -72,7 +77,7 @@ const Block = struct {
         const anchor: *Anchor = &GlobalProfiler.anchors[anchor_index];
         const prev_tsc_inclusive = anchor.tsc_inclusive;
         const parent_anchor_index: ?usize = GlobalProfiler.current_parent_index;
-        const current_tsc = timer.rdtsc();
+        const current_tsc = timer.readCounter();
 
         GlobalProfiler.current_parent_index = anchor_index;
 
@@ -86,7 +91,7 @@ const Block = struct {
 
     pub fn deinit(self: *Block) void {
         GlobalProfiler.current_parent_index = self.parent_anchor_index;
-        const total = timer.rdtsc() -% self.start_tsc;
+        const total = timer.readCounter() -% self.start_tsc;
         var anchor = &GlobalProfiler.anchors[self.anchor_index];
         anchor.hit_count += 1;
         anchor.tsc_inclusive = self.prev_tsc_inclusive +% total;
@@ -99,32 +104,70 @@ const Block = struct {
 };
 
 const timer = struct {
-    // Refer to https://www.felixcloutier.com/x86/rdtsc
-    pub inline fn rdtsc() u64 {
-        var hi: u32 = 0;
-        var low: u32 = 0;
+    inline fn readCounter() u64 {
+        switch (builtin.cpu.arch) {
+            .x86_64 => {
+                // Refer to https://www.felixcloutier.com/x86/rdtsc
+                var hi: u32 = 0;
+                var low: u32 = 0;
 
-        asm (
-            \\rdtsc
-            : [low] "={eax}" (low),
-              [hi] "={edx}" (hi),
-        );
-        return (@as(u64, hi) << 32) | @as(u64, low);
+                asm (
+                    \\rdtsc
+                    : [low] "={eax}" (low),
+                      [hi] "={edx}" (hi),
+                );
+                return (@as(u64, hi) << 32) | @as(u64, low);
+            },
+            .aarch64 => {
+                // Refer to https://arm.jonpalmisc.com/latest_sysreg/AArch64-cntvct_el0
+                var counter: u64 = 0;
+                asm volatile ("mrs %[counter], cntvct_el0"
+                    : [counter] "=r" (counter),
+                );
+                return counter;
+            },
+            else => {
+                @compileError("Unsupported architecture for high-resolution timing.");
+            },
+        }
     }
 
-    // Given a positive number of ms, estimates the frequency of the CPU time stamp
-    // counter in Hz by comparing against the OS timer.
-    export fn estimateCpuTimerFrequency(ms_to_wait: i64) u64 {
+    fn getCounterFrequency() u64 {
+        switch (builtin.cpu.arch) { 
+            .x86_64 => {
+                // x86_x4 doesn't provide a way to read the counter frequency,
+                // so we estimate it by seeing how many ticks occur in 100ms
+                // according to the OS timer, and scaling
+                return estimatex86CpuCounterFrequency(100);
+            },
+            .aarch64 => {
+                // Refer to https://arm.jonpalmisc.com/latest_sysreg/AArch64-cntfrq_el0
+                var freq: u64 = 0;
+                asm volatile ("mrs %[freq], cntfrq_el0"
+                    : [freq] "=r" (freq),
+                );
+                return freq;
+            },
+            else => {
+                @compileError("Unsupported architecture for high-resolution timing.");
+            },
+        }
+    }
+
+    /// Given a positive number of ms, estimates the frequency of the CPU time
+    /// stamp counter in Hz by comparing against the OS timer. Unlike with ARM,
+    /// there isn't a convenient way to access the counter frequency.
+    fn estimatex86CpuCounterFrequency(ms_to_wait: i64) u64 {
         const us_to_wait: i64 = ms_to_wait * std.time.us_per_ms;
 
-        const cpu_tsc_start = rdtsc();
+        const cpu_tsc_start = readCounter();
         const os_timestamp_start = std.time.microTimestamp();
 
         var os_time_elapsed: i64 = 0;
         while (os_time_elapsed < us_to_wait) {
             os_time_elapsed = std.time.microTimestamp() - os_timestamp_start;
         }
-        const cpu_tsc_end = rdtsc();
+        const cpu_tsc_end = readCounter();
 
         const cpu_ticks_elapsed = cpu_tsc_end - cpu_tsc_start;
         std.debug.assert(os_time_elapsed > 0);
@@ -134,14 +177,14 @@ const timer = struct {
     }
 };
 
-test "estimates CPU timer frequency" {
+test "estimates x86 CPU timer frequency" {
     const ms_to_wait = 100;
-    const freq = timer.estimateCpuTimerFrequency(ms_to_wait);
+    const freq = timer.estimatex86CpuCounterFrequency(ms_to_wait);
     try std.testing.expect(freq > 0);
 }
 
 test "reads time stamp counter" {
-    const ts1 = timer.rdtsc();
-    const ts2 = timer.rdtsc();
+    const ts1 = timer.readCounter();
+    const ts2 = timer.readCounter();
     try std.testing.expect(ts2 != ts1);
 }

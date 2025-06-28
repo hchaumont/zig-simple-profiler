@@ -7,7 +7,7 @@ pub fn main() !void {
         functionA(i);
     }
     profiler.GlobalProfiler.stopTiming();
-    try profiler.GlobalProfiler.printResults();
+    try profiler.GlobalProfiler.printResults(true);
 }
 
 fn functionA(sleep_ms: u64) void {
