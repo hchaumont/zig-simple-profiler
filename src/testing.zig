@@ -1,17 +1,27 @@
 const std = @import("std");
 const profiler = @import("profiler.zig");
 
+const Zones = enum {
+    main,
+    functionA,
+    functionB,
+};
+
+const Profiler = profiler.ProfilerInstance(Zones);
+
 pub fn main() !void {
-    profiler.GlobalProfiler.startTiming();
+    Profiler.startTiming();
+    var block = Profiler.tag(Zones.main);
+    defer block.deinit();
     for (0..7) |i| {
         functionA(i);
     }
-    profiler.GlobalProfiler.stopTiming();
-    try profiler.GlobalProfiler.printResults(true);
+    Profiler.stopTiming();
+    try Profiler.printResults(true);
 }
 
 fn functionA(sleep_ms: u64) void {
-    var block = profiler.GlobalProfiler.tag(profiler.ZoneTag.functionA);
+    var block = Profiler.tag(Zones.functionA);
     defer block.deinit();
     std.debug.print("functionA\n", .{});
     std.Thread.sleep(std.time.ns_per_ms * sleep_ms);
@@ -21,7 +31,7 @@ fn functionA(sleep_ms: u64) void {
 }
 
 fn functionB(sleep_ms: u64) void {
-    var block = profiler.GlobalProfiler.tag(profiler.ZoneTag.functionB);
+    var block = Profiler.tag(Zones.functionB);
     defer block.deinit();
     std.debug.print("functionB\n", .{});
     std.Thread.sleep(std.time.ns_per_ms * sleep_ms);
