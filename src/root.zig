@@ -31,7 +31,7 @@ fn Profiler(comptime ZonesEnum: type) type {
             for (self.anchors, 0..) |a, i| {
                 const anchor_tag: ZonesEnum = @enumFromInt(i);
                 const exclusive_pct: f64 = @as(f64, @floatFromInt(a.tsc_exclusive)) / @as(f64, @floatFromInt(total_cycles)) * 100;
-                try stdout.print("\n  {s} ({d} hits): {d:.2}%, {d} cycles", .{ @tagName(anchor_tag), a.hit_count, exclusive_pct, a.tsc_exclusive });
+                try stdout.print("\n  {s: <20} ({d} hits): {d: >5.2}%, {d} cycles", .{ @tagName(anchor_tag), a.hit_count, exclusive_pct, a.tsc_exclusive });
                 if (a.tsc_inclusive != a.tsc_exclusive) {
                     const inclusive_pct = @as(f64, @floatFromInt(a.tsc_inclusive)) / @as(f64, @floatFromInt(total_cycles)) * 100;
                     try stdout.print(" ({d:.2}% including children)", .{inclusive_pct});
