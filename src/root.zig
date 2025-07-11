@@ -26,26 +26,34 @@ fn Profiler(comptime ZonesEnum: type) type {
         }
 
         pub fn printResults(self: *Self, print_time: bool) !void {
-            const enabled = profiler_config.profile_mode;
-
-            const stdout = std.io.getStdOut().writer();
-            const total_cycles: u64 = self.end_tsc -% self.start_tsc;
-            try stdout.print("\nMode {s}", .{@tagName(enabled)});
-            try stdout.print("\nTotal cycles: {d}", .{total_cycles});
-            for (self.anchors, 0..) |a, i| {
-                const anchor_tag: ZonesEnum = @enumFromInt(i);
-                const exclusive_pct: f64 = @as(f64, @floatFromInt(a.tsc_exclusive)) / @as(f64, @floatFromInt(total_cycles)) * 100;
-                try stdout.print("\n  {s: <20} ({d} hits): {d: >5.2}%, {d} cycles", .{ @tagName(anchor_tag), a.hit_count, exclusive_pct, a.tsc_exclusive });
-                if (a.tsc_inclusive != a.tsc_exclusive) {
-                    const inclusive_pct = @as(f64, @floatFromInt(a.tsc_inclusive)) / @as(f64, @floatFromInt(total_cycles)) * 100;
-                    try stdout.print(" ({d:.2}% including children)", .{inclusive_pct});
-                }
-            }
-            if (print_time) {
-                const freq = timer.getCounterFrequency();
-                try stdout.print("\n(Estimated) Counter frequency: {d} Hz", .{freq});
-                const time = @as(f64, @floatFromInt(total_cycles)) / @as(f64, @floatFromInt(freq));
-                try stdout.print("\n(Approximate) Total time: {d:.5} seconds", .{time});
+            const mode = profiler_config.profile_mode;
+            switch (mode) {
+                .disabled => {
+                    return;
+                },
+                else => {
+                    const stdout = std.io.getStdOut().writer();
+                    const total_cycles: u64 = self.end_tsc -% self.start_tsc;
+                    try stdout.print("\nMode {s}", .{@tagName(mode)});
+                    try stdout.print("\nTotal cycles: {d}", .{total_cycles});
+                    if (mode == .enabled) {
+                        for (self.anchors, 0..) |a, i| {
+                            const anchor_tag: ZonesEnum = @enumFromInt(i);
+                            const exclusive_pct: f64 = @as(f64, @floatFromInt(a.tsc_exclusive)) / @as(f64, @floatFromInt(total_cycles)) * 100;
+                            try stdout.print("\n  {s: <20} ({d} hits): {d: >5.2}%, {d} cycles", .{ @tagName(anchor_tag), a.hit_count, exclusive_pct, a.tsc_exclusive });
+                            if (a.tsc_inclusive != a.tsc_exclusive) {
+                                const inclusive_pct = @as(f64, @floatFromInt(a.tsc_inclusive)) / @as(f64, @floatFromInt(total_cycles)) * 100;
+                                try stdout.print(" ({d:.2}% including children)", .{inclusive_pct});
+                            }
+                        }
+                    }
+                    if (print_time) {
+                        const freq = timer.getCounterFrequency();
+                        try stdout.print("\n(Estimated) Counter frequency: {d} Hz", .{freq});
+                        const time = @as(f64, @floatFromInt(total_cycles)) / @as(f64, @floatFromInt(freq));
+                        try stdout.print("\n(Approximate) Total time: {d:.5} seconds", .{time});
+                    }
+                },
             }
         }
 
