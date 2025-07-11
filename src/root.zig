@@ -24,7 +24,7 @@ fn Profiler(comptime ZonesEnum: type) type {
             self.end_tsc = timer.readCounter();
         }
 
-        pub fn printResults(self: *Self, printFreq: bool) !void {
+        pub fn printResults(self: *Self, print_time: bool) !void {
             const stdout = std.io.getStdOut().writer();
             const total_cycles: u64 = self.end_tsc -% self.start_tsc;
             try stdout.print("\nTotal cycles: {d}", .{total_cycles});
@@ -37,9 +37,11 @@ fn Profiler(comptime ZonesEnum: type) type {
                     try stdout.print(" ({d:.2}% including children)", .{inclusive_pct});
                 }
             }
-            if (printFreq) {
+            if (print_time) {
                 const freq = timer.getCounterFrequency();
                 try stdout.print("\n(Estimated) Counter frequency: {d} Hz", .{freq});
+                const time = @as(f64, @floatFromInt(total_cycles)) / @as(f64, @floatFromInt(freq));
+                try stdout.print("\n(Approximate) Total time: {d:.5} seconds", .{time});
             }
         }
 
