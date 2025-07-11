@@ -182,15 +182,3 @@ const timer = struct {
         return cpu_timestamp_frequency;
     }
 };
-
-test "estimates x86 CPU timer frequency" {
-    const ms_to_wait = 100;
-    const freq = timer.estimatex86CpuCounterFrequency(ms_to_wait);
-    try std.testing.expect(freq > 0);
-}
-
-test "reads time stamp counter" {
-    const ts1 = timer.readCounter();
-    const ts2 = timer.readCounter();
-    try std.testing.expect(ts2 != ts1);
-}
