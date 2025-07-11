@@ -9,24 +9,30 @@ const ZoneData = struct {
 };
 
 fn Profiler(comptime ZonesEnum: type) type {
+    const mode = profiler_config.profile_mode;
     return struct {
-        anchors: [@typeInfo(ZonesEnum).@"enum".fields.len]ZoneData,
-        start_tsc: u64,
-        end_tsc: u64,
-        current_parent_index: ?usize,
+        anchors: if (mode == .enabled) [@typeInfo(ZonesEnum).@"enum".fields.len]ZoneData else void,
+        start_tsc: if (mode != .disabled) u64 else void,
+        end_tsc: if (mode != .disabled) u64 else void,
+        current_parent_index: if (mode == .enabled) ?usize else void,
 
         const Self = @This();
 
         pub fn startTiming(self: *Self) void {
+            if (mode == .disabled) {
+                return;
+            }
             self.start_tsc = timer.readCounter();
         }
 
         pub fn stopTiming(self: *Self) void {
+            if (mode == .disabled) {
+                return;
+            }
             self.end_tsc = timer.readCounter();
         }
 
         pub fn printResults(self: *Self, print_time: bool) !void {
-            const mode = profiler_config.profile_mode;
             switch (mode) {
                 .disabled => {
                     return;
@@ -66,31 +72,41 @@ fn Profiler(comptime ZonesEnum: type) type {
 }
 
 pub fn ProfilerInstance(comptime ZonesEnum: type) *Profiler(ZonesEnum) {
+    const mode = profiler_config.profile_mode;
     const static = struct {
         var instance: Profiler(ZonesEnum) = .{
-            .anchors = .{ZoneData{
+            .anchors = if (mode == .enabled) .{ZoneData{
                 .tsc_inclusive = 0,
                 .tsc_exclusive = 0,
                 .hit_count = 0,
-            }} ** @typeInfo(ZonesEnum).@"enum".fields.len,
-            .start_tsc = undefined,
-            .end_tsc = undefined,
-            .current_parent_index = null,
+            }} ** @typeInfo(ZonesEnum).@"enum".fields.len else void{},
+            .start_tsc = if (mode != .disabled) undefined else void{},
+            .end_tsc = if (mode != .disabled) undefined else void{},
+            .current_parent_index = if (mode == .enabled) null else void{},
         };
     };
     return &static.instance;
 }
 
 fn Block(comptime ZonesEnum: type) type {
+    const enabled = profiler_config.profile_mode == .enabled;
     return struct {
-        prev_tsc_inclusive: u64,
-        start_tsc: u64,
-        anchor_index: usize,
-        parent_anchor_index: ?usize,
+        prev_tsc_inclusive: if (enabled) u64 else void,
+        start_tsc: if (enabled) u64 else void,
+        anchor_index: if (enabled) usize else void,
+        parent_anchor_index: if (enabled) ?usize else void,
 
         const Self = @This();
 
         pub fn init(anchor_index: usize) Self {
+            if (!enabled) {
+                return Self{
+                    .prev_tsc_inclusive = void{},
+                    .start_tsc = void{},
+                    .anchor_index = void{},
+                    .parent_anchor_index = void{},
+                };
+            }
             const anchor: *ZoneData = &ProfilerInstance(ZonesEnum).anchors[anchor_index];
             const prev_tsc_inclusive = anchor.tsc_inclusive;
             const parent_anchor_index: ?usize = ProfilerInstance(ZonesEnum).current_parent_index;
@@ -107,6 +123,9 @@ fn Block(comptime ZonesEnum: type) type {
         }
 
         pub fn deinit(self: *Self) void {
+            if (!enabled) {
+                return;
+            }
             ProfilerInstance(ZonesEnum).current_parent_index = self.parent_anchor_index;
             const total = timer.readCounter() -% self.start_tsc;
             var anchor = &ProfilerInstance(ZonesEnum).anchors[self.anchor_index];
