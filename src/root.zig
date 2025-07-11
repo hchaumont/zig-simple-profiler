@@ -40,7 +40,6 @@ fn Profiler(comptime ZonesEnum: type) type {
                 else => {
                     const stdout = std.io.getStdOut().writer();
                     const total_cycles: u64 = self.end_tsc -% self.start_tsc;
-                    try stdout.print("\nMode {s}", .{@tagName(mode)});
                     try stdout.print("\nTotal cycles: {d}", .{total_cycles});
                     if (mode == .enabled) {
                         for (self.anchors, 0..) |a, i| {
