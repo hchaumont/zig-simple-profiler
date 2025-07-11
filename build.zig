@@ -16,9 +16,9 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
-    const enabled = b.option(ProfileMode, "profile_mode", "Whether and how to enable profiling") orelse ProfileMode.disabled;
+    const profile_mode = b.option(ProfileMode, "profile_mode", "Whether and how to enable profiling") orelse ProfileMode.disabled;
     const options = b.addOptions();
-    options.addOption(ProfileMode, "profile_mode", enabled);
+    options.addOption(ProfileMode, "profile_mode", profile_mode);
 
     profiler.addOptions("profiler_config", options);
 
