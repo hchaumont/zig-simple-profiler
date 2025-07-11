@@ -1,5 +1,5 @@
 const std = @import("std");
-const profiler = @import("profiler.zig");
+const profiler = @import("profiler");
 
 const Zones = enum {
     main,
