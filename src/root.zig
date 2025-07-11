@@ -1,7 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-const Anchor = struct {
+const ZoneData = struct {
     tsc_inclusive: u64,
     tsc_exclusive: u64,
     hit_count: u32,
@@ -9,7 +9,7 @@ const Anchor = struct {
 
 fn Profiler(comptime ZonesEnum: type) type {
     return struct {
-        anchors: [@typeInfo(ZonesEnum).@"enum".fields.len]Anchor,
+        anchors: [@typeInfo(ZonesEnum).@"enum".fields.len]ZoneData,
         start_tsc: u64,
         end_tsc: u64,
         current_parent_index: ?usize,
@@ -56,7 +56,7 @@ fn Profiler(comptime ZonesEnum: type) type {
 pub fn ProfilerInstance(comptime ZonesEnum: type) *Profiler(ZonesEnum) {
     const static = struct {
         var instance: Profiler(ZonesEnum) = .{
-            .anchors = .{Anchor{
+            .anchors = .{ZoneData{
                 .tsc_inclusive = 0,
                 .tsc_exclusive = 0,
                 .hit_count = 0,
@@ -79,7 +79,7 @@ fn Block(comptime ZonesEnum: type) type {
         const Self = @This();
 
         pub fn init(anchor_index: usize) Self {
-            const anchor: *Anchor = &ProfilerInstance(ZonesEnum).anchors[anchor_index];
+            const anchor: *ZoneData = &ProfilerInstance(ZonesEnum).anchors[anchor_index];
             const prev_tsc_inclusive = anchor.tsc_inclusive;
             const parent_anchor_index: ?usize = ProfilerInstance(ZonesEnum).current_parent_index;
             const current_tsc = timer.readCounter();
