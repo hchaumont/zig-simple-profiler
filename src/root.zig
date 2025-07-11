@@ -1,5 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
+const profiler_config = @import("profiler_config");
 
 const ZoneData = struct {
     tsc_inclusive: u64,
@@ -25,8 +26,11 @@ fn Profiler(comptime ZonesEnum: type) type {
         }
 
         pub fn printResults(self: *Self, print_time: bool) !void {
+            const enabled = profiler_config.profile_mode;
+
             const stdout = std.io.getStdOut().writer();
             const total_cycles: u64 = self.end_tsc -% self.start_tsc;
+            try stdout.print("\nMode {s}", .{@tagName(enabled)});
             try stdout.print("\nTotal cycles: {d}", .{total_cycles});
             for (self.anchors, 0..) |a, i| {
                 const anchor_tag: ZonesEnum = @enumFromInt(i);

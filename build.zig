@@ -1,14 +1,26 @@
 const std = @import("std");
 
+const ProfileMode = enum {
+    enabled,
+    time_only,
+    disabled,
+};
+
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
+
 
     const profiler = b.addModule("profiler", .{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,
     });
+    const enabled = b.option(ProfileMode, "profile_mode", "Whether and how to enable profiling") orelse ProfileMode.disabled;
+    const options = b.addOptions();
+    options.addOption(ProfileMode, "profile_mode", enabled);
+
+    profiler.addOptions("profiler_config", options);
 
     const example = b.addExecutable(.{
         .name = "example",
