@@ -95,7 +95,7 @@ pub fn main() !void {
 }
 ```
 
-You can Use `defer` for automatic cleanup in functions:
+You can use `defer` for automatic cleanup in functions:
 ```zig
 fn myFunction() void {
     var block = Profiler.tag(Zones.myFunction);
